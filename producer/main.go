@@ -44,7 +44,7 @@ func main() {
 
 	// content_instruction := string(content) + "\n-------\nReturn a response with 10 examples in a JSON array format only. Dont include any additional markdown or text characters. I only want the JSON array. I want to use this in Golang."
 	batchSize := 10
-	prompt := fmt.Sprintf("%s\n------\nReturn a response with %d examples in a JSON array format only. Dont include any additional markdown or text characters. I only want the JSON array. I want to use this in Golang.", content, batchSize)
+	prompt := fmt.Sprintf("%s\n------\nReturn a response with %d examples in a JSON array format only. Dont include any additional markdown or text characters. I only want the JSON array.", content, batchSize)
 
 	// ollama_host := fmt.Sprintf("http://%s", getEnv("OLLAMA_HOST", "localhost:11434"))
 	client := ollama.NewClient(ollamaHost)
