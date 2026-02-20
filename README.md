@@ -1,8 +1,8 @@
-# 🔐 Agentic Network Event Monitor
+# Agentic Network Event Monitor
 
 An intelligent security log generation system powered by Ollama LLMs that produces realistic, diverse network security events for SIEM testing, and security analytics development.
 
-## 🎯 What It Does
+## What It Does
 
 This system generates **production-quality synthetic security logs** that simulate real-world network traffic, security events, and threats. Think of it as a "synthetic data factory" for security operations.
 
