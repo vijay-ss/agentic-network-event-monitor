@@ -1,0 +1,96 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+      - ./start-ollama.sh:/start-ollama.sh
+    entrypoint: ["/start-ollama.sh"]
+    restart: unless-stopped
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - ~/kafka/data/zookeeper-data:/var/lib/zookeeper/data
+      - ~/kafka/data/zookeeper-log:/var/lib/zookeeper/log
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CREATE_TOPICS: "security_logs:1:1"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppassword
+      POSTGRES_DB: appdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  producer:
+    build: ./producer
+    container_name: kafka-producer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    environment:
+      IN_DOCKER: 1
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: security_logs
+      OLLAMA_HOST: ollama:11434
+      OLLAMA_LOCAL: host.docker.internal:11434
+    volumes:
+      - ./overflow:/app/overflow
+
+  # consumer:
+  #   build: ./consumer
+  #   container_name: kafka-consumer
+  #   depends_on:
+  #     - kafka
+  #     - postgres
+  #   environment:
+  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+  #     KAFKA_TOPIC: raw-events
+  #     POSTGRES_HOST: postgres
+  #     POSTGRES_DB: appdb
+  #     POSTGRES_USER: appuser
+  #     POSTGRES_PASSWORD: apppassword
+
+volumes:
+  kafka-data:
+  postgres-data:
+  ollama-data:
+  zookeeper-data:
+  zookeeper-log:

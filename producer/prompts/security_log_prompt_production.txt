@@ -1,0 +1,384 @@
+SECURITY LOG GENERATION - PRODUCTION PROMPT
+
+Generate realistic hybrid SIEM/Network security logs in JSON format simulating real-world corporate environments.
+
+=== REALISM REQUIREMENTS ===
+
+SEVERITY DISTRIBUTION (strictly follow):
+- 85% INFO (routine operations)
+- 10% LOW (minor issues, policy violations)
+- 4% MEDIUM (auth failures, suspicious patterns)
+- 1% HIGH (detected attacks, escalating threats)
+- <1% CRITICAL (active incidents, rare)
+
+DATA QUALITY (include realistic imperfections):
+- 5-10% malformed logs (missing fields, truncated descriptions, parsing errors, encoding issues)
+- 1-3% duplicates: mostly near-duplicates (different IDs, timestamps within seconds), some exact duplicates (100% identical)
+- Occasional nulls for geo_location, user_agent, destination_domain
+- Subtle inconsistencies (bytes_sent > 0 on BLOCK, duration_ms: 0 or -1)
+
+TIME DISTRIBUTION:
+- Span multiple hours with varying density
+- Spread timestamps realistically (not clustered)
+- Show gradual attack escalation if attacks present
+
+EVENT MIX:
+- 85-90% mundane traffic (DNS, HTTPS, backups, health checks, file access)
+- 10-15% security-relevant (blocks, failed auth, scans)
+- Attacks should build over time, not instant detection
+
+=== LOG STRUCTURE ===
+
+{
+  "logs": [
+    { /* log object */ }
+  ]
+}
+
+=== CORE FIELDS ===
+
+ALWAYS INCLUDE:
+- id (string), timestamp (datetime), source_ip (string), destination_ip (string), source_port (integer), destination_port (integer)
+- protocol (string), application (string), action (string), bytes_sent (integer), bytes_received (integer), packet_count (integer), duration_ms (integer)
+- event_type (string), severity (string), user (string), correlation_id (string), device_name (string), vlan_id (integer)
+- geo_location (string), user_agent (string), response_code (integer), threat_indicators (string), rule_id (string), description (string)
+
+NETWORK IPS (use realistic ranges):
+- Internal: 10.x.x.x, 172.16-31.x.x, 192.168.x.x
+- Cloud: AWS (52.x, 54.x), GCP (35.x, 142.250.x), Azure (13.x, 20.x)
+- CDN: Cloudflare (104.16-31.x), Akamai
+- Legitimate: GitHub (140.82.x), Microsoft (13.x), Google (142.250.x)
+- VPN pools: 10.200.x.x
+- Guest: 172.20.x.x
+- IoT: 10.50.x.x
+
+DEVICE NAMES (realistic patterns):
+- Workstations: WS-DEPT-USER-## (e.g., WS-MKTG-JD-042, LAPTOP-ENG-ASMITH)
+- Servers: SQLPROD01-CLUSTER-A, WEB-APP-LB-02, DC-PRIMARY-NYC
+- Cloud: aws-ec2-i-0abc123def, azure-vm-prod-web-01
+- Network: FW-DMZ-PRIMARY, SW-CORE-01, AP-FLOOR3-12
+- IoT: HVAC-CONTROLLER-02, PRINTER-FLOOR2-05
+
+USERS (realistic types):
+- Regular: firstname.lastname, flastname
+- Service: svc_backup, sa_monitoring, service_account_elk
+- Contractors: contractor_ext_##, temp_username, ext-vendor-name
+- Automation: bot_deploy, automation_jenkins, iot_service
+
+VLANS:
+- 1=DMZ, 50=guest, 100=workstations, 150=developers, 200=servers, 300=monitoring, 400=IoT, 999=quarantine
+
+=== OPTIONAL ENRICHMENT FIELDS ===
+
+Use when relevant to log source/type:
+
+log_metadata (SIEM-collected logs):
+{
+  "collector": "splunk-forwarder-03",
+  "source_type": "firewall|edr_agent|ids|vpn_gateway|dns_server",
+  "ingestion_time": "ISO8601",
+  "pipeline": "network_events|endpoint_security|threat_detection"
+}
+
+network_details (network segmentation):
+{
+  "network_segment": "DMZ|CORPORATE_LAN|VPN_POOL|GUEST_WIFI|SERVER_FARM|IOT_DEVICES",
+  "subnet": "CIDR",
+  "security_zone": "trusted|untrusted|quarantine|isolated"
+}
+
+connection_state: "ESTABLISHED|CLOSED|SYN_SENT|TIME_WAIT" (TCP only)
+tcp_flags: "SYN|ACK|FIN,ACK|RST|PSH,ACK" (TCP only)
+
+policy_violation (when action=BLOCK):
+{
+  "policy_name": "CORP-FW-001",
+  "violation_type": "unauthorized_protocol|malicious_content|geo_restriction",
+  "policy_severity": "low|medium|high|critical"
+}
+
+asset_tags: ["production", "PCI_scope", "critical_system", "SOC2_compliant", "development"]
+
+session_details (RDP, VPN, SSH):
+{
+  "session_start_time": "ISO8601",
+  "session_end_time": "ISO8601",
+  "session_duration_seconds": 7200
+}
+
+resource_utilization (EDR/endpoint logs ~30% of logs):
+{
+  "cpu_percent": 12.3,
+  "memory_percent": 34.7,
+  "disk_io_percent": 8.2,
+  "process_name": "git.exe",
+  "process_id": 7823
+}
+
+Optional: reason, alert_id, file_hash, malware_family
+
+=== EVENT TYPES ===
+
+COMMON (85-90%):
+DNS_QUERY, HTTPS_CONNECTION, FILE_SHARE_ACCESS, HEALTH_CHECK, EMAIL_SEND, DATABASE_QUERY, API_CALL, VIDEO_CONFERENCE, CI_CD_BUILD, CLOUD_UPLOAD, CACHE_ACCESS, METRICS_COLLECTION
+
+BLOCKED/SUSPICIOUS (5-10%):
+SSH_ATTEMPT, RDP_CONNECTION_ATTEMPT, SMB_CONNECTION_ATTEMPT, HTTP_BLOCKED, STREAMING_BLOCKED, PORT_SCAN_DETECTED
+
+HIGH SEVERITY (rare):
+BRUTE_FORCE_ATTACK, PORT_SCAN_DETECTED, MALWARE_DOWNLOAD_BLOCKED, SQL_INJECTION_ATTEMPT, PRIVILEGE_ESCALATION_ATTEMPT, LATERAL_MOVEMENT_DETECTED, SUSPICIOUS_OUTBOUND_TRAFFIC
+
+CRITICAL SEVERITY (very rare):
+DATA_EXFILTRATION_CONFIRMED, MALWARE_EXECUTION_DETECTED, RANSOMWARE_ACTIVE, ROOT_COMPROMISE, BACKDOOR_DETECTED, C2_COMMUNICATION, ZERO_DAY_EXPLOIT
+
+=== EXAMPLES ===
+
+Example 1 - Normal HTTPS (Network-only):
+{
+  "id": "log_001",
+  "timestamp": "2026-02-08T09:15:32.142Z",
+  "source_ip": "192.168.1.45",
+  "destination_ip": "142.250.185.46",
+  "destination_domain": "docs.google.com",
+  "source_port": 52341,
+  "destination_port": 443,
+  "protocol": "TCP",
+  "application": "HTTPS",
+  "action": "ALLOW",
+  "bytes_sent": 2048,
+  "bytes_received": 8192,
+  "packet_count": 47,
+  "duration_ms": 1523,
+  "event_type": "HTTPS_CONNECTION",
+  "severity": "INFO",
+  "user": "john.doe",
+  "correlation_id": "corr_a8f3d2c1",
+  "device_name": "WS-MKTG-JD-042",
+  "vlan_id": 100,
+  "geo_location": "Toronto, ON, CA",
+  "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/121.0.0.0",
+  "log_metadata": {
+    "collector": "splunk-forwarder-03",
+    "source_type": "firewall",
+    "ingestion_time": "2026-02-08T09:15:33.245Z",
+    "pipeline": "network_events"
+  },
+  "network_details": {
+    "network_segment": "CORPORATE_LAN",
+    "subnet": "192.168.1.0/24",
+    "security_zone": "trusted"
+  },
+  "connection_state": "ESTABLISHED",
+  "tcp_flags": "ACK,PSH",
+  "policy_violation": null,
+  "asset_tags": ["production", "standard_workstation"],
+  "session_details": null,
+  "resource_utilization": null,
+  "response_code": 200,
+  "threat_indicators": [],
+  "rule_id": "FW-ALLOW-001",
+  "description": "User accessing Google Docs to collaborate on project proposal"
+}
+
+Example 2 - Blocked SSH with Policy:
+{
+  "id": "log_012",
+  "timestamp": "2026-02-08T10:22:45.891Z",
+  "source_ip": "185.220.101.47",
+  "destination_ip": "10.0.2.5",
+  "destination_domain": null,
+  "source_port": 44892,
+  "destination_port": 22,
+  "protocol": "TCP",
+  "application": "SSH",
+  "action": "BLOCK",
+  "bytes_sent": 0,
+  "bytes_received": 0,
+  "packet_count": 1,
+  "duration_ms": 0,
+  "event_type": "SSH_ATTEMPT",
+  "severity": "INFO",
+  "user": null,
+  "correlation_id": null,
+  "device_name": "FW-DMZ-PRIMARY",
+  "vlan_id": 1,
+  "geo_location": "Frankfurt, DE",
+  "user_agent": "OpenSSH_8.9p1",
+  "log_metadata": {
+    "collector": "palo-alto-collector-01",
+    "source_type": "firewall",
+    "ingestion_time": "2026-02-08T10:22:46.102Z",
+    "pipeline": "perimeter_security"
+  },
+  "network_details": {
+    "network_segment": "DMZ",
+    "subnet": "10.0.2.0/24",
+    "security_zone": "untrusted"
+  },
+  "connection_state": "CLOSED",
+  "tcp_flags": "SYN",
+  "policy_violation": {
+    "policy_name": "CORP-FW-DMZ-001",
+    "violation_type": "unauthorized_protocol",
+    "policy_severity": "low"
+  },
+  "asset_tags": ["DMZ_server", "production"],
+  "session_details": null,
+  "resource_utilization": null,
+  "response_code": null,
+  "threat_indicators": [],
+  "rule_id": "FW-BLOCK-SSH-EXT",
+  "reason": "External SSH blocked by default policy",
+  "description": "External SSH connection attempt blocked by firewall rule"
+}
+
+Example 3 - EDR-Enriched Normal Activity:
+{
+  "id": "log_067",
+  "timestamp": "2026-02-08T14:33:47.112Z",
+  "source_ip": "192.168.1.91",
+  "destination_ip": "140.82.121.6",
+  "destination_domain": "github.com",
+  "source_port": 49823,
+  "destination_port": 443,
+  "protocol": "TCP",
+  "application": "HTTPS",
+  "action": "ALLOW",
+  "bytes_sent": 4096,
+  "bytes_received": 16384,
+  "packet_count": 89,
+  "duration_ms": 2341,
+  "event_type": "HTTPS_CONNECTION",
+  "severity": "INFO",
+  "user": "kate.davis",
+  "correlation_id": "corr_git_e7a2",
+  "device_name": "LAPTOP-ENG-KDAVIS",
+  "vlan_id": 150,
+  "geo_location": "Toronto, ON, CA",
+  "user_agent": "git/2.43.0",
+  "log_metadata": {
+    "collector": "crowdstrike-edr-agent",
+    "source_type": "edr_agent",
+    "ingestion_time": "2026-02-08T14:33:48.234Z",
+    "pipeline": "endpoint_security"
+  },
+  "network_details": {
+    "network_segment": "CORPORATE_LAN",
+    "subnet": "192.168.1.0/24",
+    "security_zone": "trusted"
+  },
+  "connection_state": "ESTABLISHED",
+  "tcp_flags": "ACK",
+  "policy_violation": null,
+  "asset_tags": ["development", "engineering_dept"],
+  "session_details": null,
+  "resource_utilization": {
+    "cpu_percent": 12.3,
+    "memory_percent": 34.7,
+    "disk_io_percent": 8.2,
+    "process_name": "git.exe",
+    "process_id": 7823
+  },
+  "response_code": 200,
+  "threat_indicators": [],
+  "rule_id": "FW-ALLOW-DEV-HTTPS",
+  "description": "Developer syncing code repository"
+}
+
+Example 4 - CRITICAL Ransomware Detection:
+{
+  "id": "log_156",
+  "timestamp": "2026-02-08T16:23:47.112Z",
+  "source_ip": "192.168.1.87",
+  "destination_ip": "172.16.5.12",
+  "destination_domain": "fileserver-02.internal.local",
+  "source_port": 51923,
+  "destination_port": 445,
+  "protocol": "TCP",
+  "application": "SMB",
+  "action": "BLOCK",
+  "bytes_sent": 52428800,
+  "bytes_received": 8192,
+  "packet_count": 34521,
+  "duration_ms": 12456,
+  "event_type": "RANSOMWARE_ACTIVE",
+  "severity": "CRITICAL",
+  "user": "james.smith",
+  "correlation_id": "corr_ransom_9e4d",
+  "device_name": "WS-FIN-JSMITH-01",
+  "vlan_id": 100,
+  "geo_location": "Toronto, ON, CA",
+  "user_agent": null,
+  "log_metadata": {
+    "collector": "sentinelone-edr",
+    "source_type": "edr_agent",
+    "ingestion_time": "2026-02-08T16:23:48.445Z",
+    "pipeline": "threat_detection"
+  },
+  "network_details": {
+    "network_segment": "CORPORATE_LAN",
+    "subnet": "192.168.1.0/24",
+    "security_zone": "quarantine"
+  },
+  "connection_state": "CLOSED",
+  "tcp_flags": "RST",
+  "policy_violation": {
+    "policy_name": "EDR-RANSOMWARE-BLOCK",
+    "violation_type": "malicious_content",
+    "policy_severity": "critical"
+  },
+  "asset_tags": ["finance_dept", "quarantined"],
+  "session_details": null,
+  "resource_utilization": {
+    "cpu_percent": 94.8,
+    "memory_percent": 87.3,
+    "disk_io_percent": 98.2,
+    "process_name": "svchost32.exe",
+    "process_id": 8923
+  },
+  "response_code": null,
+  "threat_indicators": ["mass_file_encryption", "suspicious_file_extensions", "ransom_note_detected"],
+  "rule_id": "EDR-BLOCK-RANSOMWARE",
+  "reason": "Rapid file modification pattern consistent with encryption activity",
+  "alert_id": "ALERT-2026020816-0567-CRITICAL",
+  "file_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "malware_family": "LockBit_3.0",
+  "description": "Ransomware attempting to encrypt files, blocked by EDR and workstation quarantined"
+}
+
+Example 5 - Malformed Log (Missing Fields):
+{
+  "id": "log_124",
+  "timestamp": "2026-02-08T13:22:15.441Z",
+  "source_ip": "192.168.1.156",
+  "destination_ip": "172.217.14.206",
+  "source_port": 52341,
+  "destination_port": 443,
+  "protocol": "TCP",
+  "action": "ALLOW",
+  "bytes_sent": 3421,
+  "packet_count": 45,
+  "event_type": "HTTPS_CONNECTION",
+  "severity": "INFO",
+  "device_name": "WORKSTATION-067",
+  "vlan_id": 100,
+  "rule_id": "FW-ALLOW-HTTPS",
+  "description": "User browsing web (log incomplete - some fields missing)"
+}
+
+=== USAGE ===
+
+DEFAULT BEHAVIOR:
+- Hybrid format: 70% network-only (resource_utilization: null), 30% EDR-enriched
+- Realistic time distribution across requested span
+- Follow severity ratios strictly
+- Include 5-10% malformed, 1-3% duplicates
+
+=== CRITICAL REMINDERS ===
+
+✗ DON'T: Make every event critical, cluster timestamps, use only generic IPs, create perfect clean data
+✓ DO: Follow severity ratios, spread time realistically, use varied realistic IPs, include data quality issues
+✓ DO: 70% logs are boring routine traffic (DNS, backups, health checks)
+✓ DO: Attacks escalate gradually over time (LOW → MEDIUM → HIGH → CRITICAL)
+✓ DO: Use realistic device names, usernames, and network segments
+✓ DO: resource_utilization only for EDR/endpoint logs (~30%), null for network logs (~70%)
