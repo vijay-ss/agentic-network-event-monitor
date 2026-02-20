@@ -53,7 +53,7 @@ This system generates **production-quality synthetic security logs** that simula
     * [Generated Log Format](#generated-log-format)
   * [Monitoring](#monitoring)
   * [Troubleshooting](#troubleshooting)
-- [Consumer App App](#consumer-app)
+- [Consumer App](#consumer-app)
 
 ## Quick Start
 
