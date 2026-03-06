@@ -236,3 +236,9 @@ go.work.sum
 # local files
 local
 overflow
+.env
+data/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store

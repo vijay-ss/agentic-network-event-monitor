@@ -1,0 +1,67 @@
+{
+  "mappings": {
+    "properties": {
+      "silver": {
+        "properties": {
+          "id":                 { "type": "keyword" },
+          "original_id":       { "type": "keyword" },
+          "event_time":        { "type": "date" },
+          "ingestion_time":    { "type": "date" },
+          "source_ip":         { "type": "ip" },
+          "destination_ip":    { "type": "ip" },
+          "destination_domain":{ "type": "keyword" },
+          "source_port":       { "type": "integer" },
+          "destination_port":  { "type": "integer" },
+          "protocol":          { "type": "keyword" },
+          "application":       { "type": "keyword" },
+          "bytes_sent":        { "type": "long" },
+          "bytes_received":    { "type": "long" },
+          "packet_count":      { "type": "integer" },
+          "duration_ms":       { "type": "integer" },
+          "event_type":        { "type": "keyword" },
+          "severity":          { "type": "keyword" },
+          "action":            { "type": "keyword" },
+          "connection_state":  { "type": "keyword" },
+          "tcp_flags":         { "type": "keyword" },
+          "response_code":     { "type": "integer" },
+          "user":              { "type": "keyword" },
+          "device_name":       { "type": "keyword" },
+          "source_type":       { "type": "keyword" },
+          "pipeline":          { "type": "keyword" },
+          "collector":         { "type": "keyword" },
+          "network_segment":   { "type": "keyword" },
+          "security_zone":     { "type": "keyword" },
+          "geo_location":      { "type": "keyword" },
+          "vlan_id":           { "type": "integer" },
+          "asset_tags":        { "type": "keyword" },
+          "rule_id":           { "type": "keyword" },
+          "correlation_id":    { "type": "keyword" },
+          "process_name":      { "type": "keyword" },
+          "process_id":        { "type": "integer" },
+          "cpu_percent":       { "type": "float" },
+          "memory_percent":    { "type": "float" },
+          "cleaning_version":  { "type": "keyword" },
+          "cleaning_warnings": { "type": "keyword" }
+        }
+      },
+      "threat_score":        { "type": "integer" },
+      "recommended_action":  { "type": "keyword" },
+      "mitre_tactic":        { "type": "keyword" },
+      "narrative":           { "type": "text" },
+      "enrichment_version":  { "type": "keyword" },
+      "processing_time_ms":  { "type": "integer" },
+      "routed":              { "type": "boolean" },
+      "score_breakdown":     { "type": "object", "dynamic": true },
+      "ip_reputation":       { "type": "object", "dynamic": true },
+      "asset_context":       { "type": "object", "dynamic": true },
+      "identity_context":    { "type": "object", "dynamic": true }
+    }
+  },
+  "settings": {
+    "number_of_shards":   1,
+    "number_of_replicas": 0,
+    "index": {
+      "refresh_interval": "5s"
+    }
+  }
+}
