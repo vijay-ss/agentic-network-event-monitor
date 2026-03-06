@@ -1,4 +1,3 @@
-# cleaner/consumer.py
 """
 Cleaner Agent — Bronze → Silver
 
