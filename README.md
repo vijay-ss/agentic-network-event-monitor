@@ -43,6 +43,7 @@ The pipeline has two halves. The **producer** is a Go application that uses Olla
 ---
 
 ## Architecture
+[HTML diagram](https://htmlpreview.github.io/?https://github.com/vijay-ss/agentic-network-event-monitor/blob/main/architecture-diagram.html)
 
 ```
 ┌─────────────────────────────────────────────────────────────────-┐
