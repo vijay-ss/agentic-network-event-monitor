@@ -7,59 +7,337 @@ services:
     volumes:
       - ollama-data:/root/.ollama
       - ./start-ollama.sh:/start-ollama.sh
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     entrypoint: ["/start-ollama.sh"]
     restart: unless-stopped
 
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
+    image: confluentinc/cp-zookeeper:7.6.0
     container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     volumes:
       - ~/kafka/data/zookeeper-data:/var/lib/zookeeper/data
       - ~/kafka/data/zookeeper-log:/var/lib/zookeeper/log
 
   kafka:
-    image: confluentinc/cp-kafka:7.5.0
+    image: confluentinc/cp-kafka:7.6.0
     container_name: kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
-    healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_CREATE_TOPICS: "security_logs:1:1"
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 168
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:29092"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
     volumes:
       - kafka-data:/var/lib/kafka/data
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command: |
+      "
+      echo 'Creating Kafka topics...'
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic logs.bronze.events.v1          --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic logs.silver.events.v1          --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic logs.gold.assessed-events.v1   --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic logs.dead.parse-errors.v1      --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic logs.dead.clean-errors.v1      --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic logs.dead.enrich-errors.v1     --partitions 1 --replication-factor 1
+      echo 'Creating Flink aggregated topics...'
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic logs.aggregated.windowed-events.v1    --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic logs.aggregated.correlated-events.v1  --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic logs.aggregated.baseline-alerts.v1    --partitions 1 --replication-factor 1
+      echo 'All topics created.'
+      kafka-topics --bootstrap-server kafka:29092 --list
+      "
+
+  kafka-connect:
+    container_name: kafka-connect
+    build:
+      context: .
+      dockerfile: kafka_connect/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:29092
+      CONNECT_REST_PORT: 8083
+      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect
+      CONNECT_GROUP_ID: security-connect-group
+      CONNECT_CONFIG_STORAGE_TOPIC: _connect-configs
+      CONNECT_OFFSET_STORAGE_TOPIC: _connect-offsets
+      CONNECT_STATUS_STORAGE_TOPIC: _connect-status
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/connectors"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+
+  kafka-connect-init:
+    image: curlimages/curl:latest
+    container_name: kafka-connect-init
+    depends_on:
+      kafka-connect:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      ENV_MODE: ${ENV_MODE:-dev}
+      FLUSH_SIZE: ${FLUSH_SIZE:-}
+      ROTATE_INTERVAL_MS: ${ROTATE_INTERVAL_MS:-}
+    volumes:
+      - ./config/kafka_connect/connectors.sh:/connectors.sh
+    entrypoint: ["/bin/sh", "/connectors.sh"]
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/_cluster/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  elasticsearch-init:
+    image: curlimages/curl:latest
+    container_name: elasticsearch-init
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./config/elasticsearch/init.sh:/init.sh
+      - ./config/elasticsearch/security-events-mapping.json:/mappings/security-events-mapping.json
+      - ./config/elasticsearch/security-aggregations-mapping.json:/mappings/security-aggregations-mapping.json
+    entrypoint: ["/bin/sh", "/init.sh"]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
 
   postgres:
     image: postgres:16
     container_name: postgres
-    environment:
-      POSTGRES_USER: appuser
-      POSTGRES_PASSWORD: apppassword
-      POSTGRES_DB: appdb
     ports:
       - "5432:5432"
+    environment:
+      POSTGRES_DB:       ${POSTGRES_DB:-security}
+      POSTGRES_USER:     ${POSTGRES_USER:-security}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-security}
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ./config/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "security"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - ./data/minio:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      mc alias set local http://minio:9000 minioadmin minioadmin
+      mc mb --ignore-existing local/security-lake
+      mc mb --ignore-existing local/security-lake/bronze
+      mc mb --ignore-existing local/security-lake/silver
+      mc mb --ignore-existing local/security-lake/gold
+      mc mb --ignore-existing local/security-lake/aggregated/windowed
+      mc mb --ignore-existing local/security-lake/aggregated/correlated
+      mc mb --ignore-existing local/security-lake/aggregated/baseline
+      echo 'MinIO buckets ready.'
+      "
+
+  flink-jobmanager:
+    build:
+      context: .
+      dockerfile: flink/Dockerfile
+    command: jobmanager
+    ports:
+      - "8081:8081"
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 4
+        state.backend: hashmap
+        state.checkpoints.dir: file:///tmp/flink-checkpoints
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/overview"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  flink-taskmanager:
+    build:
+      context: .
+      dockerfile: flink/Dockerfile
+    command: taskmanager
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+    environment:
+      FLINK_PROPERTIES: |
+        jobmanager.rpc.address: flink-jobmanager
+        taskmanager.numberOfTaskSlots: 4
+        state.backend: hashmap
+        state.checkpoints.dir: file:///tmp/flink-checkpoints
+
+  flink-job:
+    build:
+      context: .
+      dockerfile: flink/Dockerfile
+    depends_on:
+      flink-jobmanager:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS:      kafka:29092
+      FLINK_WINDOW_MINUTES:         ${FLINK_WINDOW_MINUTES:-5}
+      FLINK_CEP_WINDOW_MINUTES:     ${FLINK_CEP_WINDOW_MINUTES:-10}
+      FLINK_VELOCITY_THRESHOLD:     ${FLINK_VELOCITY_THRESHOLD:-10}
+      FLINK_BASELINE_MULTIPLIER:    ${FLINK_BASELINE_MULTIPLIER:-3.0}
+      FLINK_BASELINE_WINDOW_COUNT:  ${FLINK_BASELINE_WINDOW_COUNT:-12}
+    command: >
+      bash -c "
+        echo 'Waiting for JobManager...' &&
+        sleep 10 &&
+        flink run --jobmanager flink-jobmanager:8081 --python /app/log_aggregation.py &&
+        echo 'Flink job submitted.'
+      "
+    restart: on-failure
+
+  gold-consumer:
+    container_name: gold-consumer
+    build:
+      context: .
+      dockerfile: gold_consumer/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
+      elasticsearch-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      ELASTICSEARCH_HOST:      http://elasticsearch:9200
+      POSTGRES_HOST:           postgres
+      POSTGRES_DB:             ${POSTGRES_DB:-security}
+      POSTGRES_USER:           ${POSTGRES_USER:-security}
+      POSTGRES_PASSWORD:       ${POSTGRES_PASSWORD:-security}
+    restart: unless-stopped
+
+  flink-consumer:
+    container_name: flink-consumer
+    build:
+      context: .
+      dockerfile: flink_consumer/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      elasticsearch:
+        condition: service_healthy
+      elasticsearch-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      flink-job:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS:   kafka:29092
+      ELASTICSEARCH_HOST:        http://elasticsearch:9200
+      POSTGRES_HOST:             postgres
+      POSTGRES_DB:               ${POSTGRES_DB:-security}
+      POSTGRES_USER:             ${POSTGRES_USER:-security}
+      POSTGRES_PASSWORD:         ${POSTGRES_PASSWORD:-security}
+      FLINK_CEP_WINDOW_MINUTES:  ${FLINK_CEP_WINDOW_MINUTES:-10}
+    restart: unless-stopped
 
   producer:
-    build: ./producer
     container_name: kafka-producer
+    build: ./producer
     depends_on:
       kafka:
         condition: service_healthy
@@ -68,29 +346,74 @@ services:
     environment:
       IN_DOCKER: 1
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_TOPIC: security_logs
+      KAFKA_TOPIC: logs.bronze.events.v1
       OLLAMA_HOST: ollama:11434
       OLLAMA_LOCAL: host.docker.internal:11434
     volumes:
       - ./overflow:/app/overflow
 
-  # consumer:
-  #   build: ./consumer
-  #   container_name: kafka-consumer
-  #   depends_on:
-  #     - kafka
-  #     - postgres
-  #   environment:
-  #     KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-  #     KAFKA_TOPIC: raw-events
-  #     POSTGRES_HOST: postgres
-  #     POSTGRES_DB: appdb
-  #     POSTGRES_USER: appuser
-  #     POSTGRES_PASSWORD: apppassword
+  cleaner-agent:
+    container_name: data-cleaner
+    build:
+      context: .
+      dockerfile: cleaner/Dockerfile
+    command: python -m cleaner.consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    restart: unless-stopped
+
+  enricher-agent:
+    container_name: enricher-agent
+    build:
+      context: .
+      dockerfile: enricher/Dockerfile
+    command: python -m enricher.consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
+      ABUSEIPDB_API_KEY: ${ABUSEIPDB_API_KEY:-}
+      OTX_API_KEY: ${OTX_API_KEY:-}
+      IPINFO_TOKEN: ${IPINFO_TOKEN:-}
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+    restart: unless-stopped
+
+  # ── Demo / Testing ───────────────────────────────────────────────────────────
+  demo-producer:
+    container_name: demo-producer
+    build:
+      context: .
+      dockerfile: demo_producer/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    profiles:
+      - demo # only starts when explicitly requested
+    # Usage:
+    #   docker compose --profile demo run demo-producer # send samples once
+    #   docker compose --profile demo run demo-producer python demo_producer/demo_producer.py --loop
+    #   docker compose --profile demo run demo-producer python demo_producer/demo_producer.py --count 50
 
 volumes:
   kafka-data:
   postgres-data:
+  elasticsearch-data:
   ollama-data:
   zookeeper-data:
   zookeeper-log:

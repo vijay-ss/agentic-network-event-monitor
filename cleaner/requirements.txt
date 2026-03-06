@@ -1,0 +1,4 @@
+confluent-kafka==2.3.0       # Kafka consumer/producer
+pydantic==2.9.0              # Data models (shared/models.py)
+python-dateutil==2.9.0       # Timestamp normalization
+rich==13.8.0                 # Terminal output

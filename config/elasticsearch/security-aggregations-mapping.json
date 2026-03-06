@@ -1,0 +1,56 @@
+{
+  "mappings": {
+    "properties": {
+      "id":                 { "type": "keyword" },
+      "aggregation_type":   { "type": "keyword" },
+      "source_ip":          { "type": "ip" },
+      "source_event_type":  { "type": "keyword" },
+      "event_time":         { "type": "date" },
+      "first_seen":         { "type": "date" },
+      "last_seen":          { "type": "date" },
+      "window_minutes":     { "type": "integer" },
+      "description":        { "type": "text" },
+      "event_count":        { "type": "integer" },
+      "unique_dest_ips":    { "type": "integer" },
+      "unique_dest_ports":  { "type": "integer" },
+      "total_bytes_sent":   { "type": "long" },
+      "pattern":            { "type": "keyword" },
+      "aggregated":         { "type": "boolean" },
+      "correlated":         { "type": "boolean" },
+      "baseline_alert":     { "type": "boolean" },
+
+      "baseline_stats": {
+        "properties": {
+          "current_count":       { "type": "integer" },
+          "rolling_average":     { "type": "float" },
+          "multiplier":          { "type": "float" },
+          "threshold":           { "type": "float" },
+          "windows_in_baseline": { "type": "integer" }
+        }
+      },
+
+      "chain": { "type": "object", "dynamic": true },
+
+      "enrichment_summary": {
+        "properties": {
+          "max_threat_score":   { "type": "integer" },
+          "avg_threat_score":   { "type": "integer" },
+          "recommended_action": { "type": "keyword" },
+          "mitre_tactic":       { "type": "keyword" },
+          "narrative":          { "type": "text" },
+          "source_event_ids":   { "type": "keyword" },
+          "ip_reputation":      { "type": "object", "dynamic": true },
+          "asset_context":      { "type": "object", "dynamic": true },
+          "identity_context":   { "type": "object", "dynamic": true }
+        }
+      }
+    }
+  },
+  "settings": {
+    "number_of_shards":   1,
+    "number_of_replicas": 0,
+    "index": {
+      "refresh_interval": "5s"
+    }
+  }
+}

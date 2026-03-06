@@ -1,6 +1,6 @@
 # Understanding streamLogsWithBackpressure
 
-## 🎯 What is Backpressure?
+## What is Backpressure?
 
 **Backpressure** is a mechanism to prevent overwhelming your system when the producer (log generator) is faster than the consumer (Kafka).
 
@@ -10,7 +10,7 @@ Think of it like a water pipe:
 
 ---
 
-## 📊 The Problem It Solves
+## The Problem It Solves
 
 ### Scenario Without Backpressure:
 
@@ -48,7 +48,7 @@ Result: Stable! ✅
 
 ---
 
-## 🔍 Code Breakdown
+## Code Breakdown
 
 Let's dissect the function piece by piece:
 
@@ -194,7 +194,7 @@ Buffer:  [Log][Log][Log][   ][   ][   ]
 
 ---
 
-## 🎭 Complete Flow Example
+## Complete Flow Example
 
 Let's trace what happens with realistic numbers:
 
@@ -247,7 +247,7 @@ Consumer: Sending as fast as it can
 
 ---
 
-## 🚨 Why This Matters
+## Why This Matters
 
 ### Without Backpressure:
 
@@ -344,7 +344,7 @@ Result: Stable, no drops
 
 ---
 
-## 📊 Monitoring Backpressure
+## Monitoring Backpressure
 
 ### Add Metrics:
 
@@ -393,7 +393,7 @@ Stats: Sent=2500, Dropped=150, Buffer=500/500
 
 ---
 
-## 🎯 When to Use This Pattern
+## When to Use This Pattern
 
 ### ✅ Use streamLogsWithBackpressure when:
 - Running 24/7 continuous generation
@@ -408,7 +408,7 @@ Stats: Sent=2500, Dropped=150, Buffer=500/500
 
 ---
 
-## 🔄 Alternatives
+## Alternatives
 
 ### 1. Blocking (No Backpressure)
 ```go
@@ -438,7 +438,7 @@ logBuffer <- logEntry
 
 ---
 
-## 💡 Summary
+## Summary
 
 **streamLogsWithBackpressure** is like a **pressure relief valve**:
 

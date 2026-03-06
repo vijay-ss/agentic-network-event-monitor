@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agentic Network Event Monitor — Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:         #0a0c10;
+    --surface:    #111318;
+    --surface2:   #181c24;
+    --border:     #1e2535;
+    --border-mid: #2a3550;
+
+    --bronze:  #c87840;
+    --silver:  #6aa8c8;
+    --gold:    #d4a832;
+    --purple:  #7c6ce8;
+    --green:   #34c47c;
+    --blue:    #3a8cd4;
+    --orange:  #e07830;
+    --pink:    #c43868;
+    --teal:    #30b888;
+    --red:     #d03848;
+
+    --text:     #c8d4e8;
+    --text-mid: #6878a0;
+    --text-dim: #384460;
+
+    --font: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: var(--font);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 48px 32px 64px;
+  }
+
+  /* ── Header ── */
+  .header {
+    text-align: center;
+    margin-bottom: 52px;
+  }
+  .header-eyebrow {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: #e8eef8;
+    letter-spacing: -0.02em;
+    margin-bottom: 8px;
+  }
+  .header p {
+    font-size: 13px;
+    color: var(--text-mid);
+    font-weight: 300;
+  }
+
+  /* ── Main layout ── */
+  .diagram {
+    max-width: 1080px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── Section labels ── */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    padding-left: 2px;
+  }
+
+  /* ── Row layouts ── */
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 0;
+  }
+
+  .row-spaced {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  /* ── Nodes ── */
+  .node {
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 10px 14px;
+    flex-shrink: 0;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .node:hover { border-color: var(--border-mid); }
+
+  .node-title {
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+  .node-sub {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-mid);
+    margin-top: 3px;
+    line-height: 1.5;
+  }
+  .node-tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 8px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: 5px;
+    letter-spacing: 0.04em;
+  }
+
+  /* Node color variants */
+  .n-source    { border-color: #283050; }
+  .n-source .node-title { color: #6878b0; }
+  .n-bronze    { border-color: #5c3818; }
+  .n-bronze .node-title { color: var(--bronze); }
+  .n-silver    { border-color: #1c3c58; }
+  .n-silver .node-title { color: var(--silver); }
+  .n-gold      { border-color: #5c4010; }
+  .n-gold .node-title   { color: var(--gold); }
+  .n-flink     { border-color: #38306c; }
+  .n-flink .node-title  { color: var(--purple); }
+  .n-service   { border-color: #1c3c5c; }
+  .n-service .node-title { color: #5898d8; }
+  .n-consumer  { border-color: #3c3010; }
+  .n-consumer .node-title { color: #c8940c; }
+  .n-consumer-f { border-color: #30286c; }
+  .n-consumer-f .node-title { color: #9888e8; }
+  .n-es        { border-color: #143828; }
+  .n-es .node-title     { color: var(--green); }
+  .n-pg        { border-color: #182c50; }
+  .n-pg .node-title     { color: var(--blue); }
+  .n-minio     { border-color: #5c2010; }
+  .n-minio .node-title  { color: var(--orange); }
+  .n-bi        { border-color: #1c2c50; }
+  .n-bi .node-title     { color: #6898c8; }
+  .n-dead      { border-color: #5c1c20; }
+  .n-dead .node-title   { color: #b03840; }
+
+  /* ── Arrows ── */
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    padding: 0 1px;
+  }
+  .arrow-line {
+    height: 1px;
+    width: 32px;
+    position: relative;
+  }
+  .arrow-line::after {
+    content: '';
+    position: absolute;
+    right: -1px; top: -3px;
+    border: 3px solid transparent;
+    border-left: 5px solid;
+    border-left-color: inherit;
+  }
+  .arrow-label {
+    font-family: var(--mono);
+    font-size: 8px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+  }
+
+  /* Arrow color variants */
+  .a-bronze .arrow-line { background: var(--bronze); border-left-color: var(--bronze); }
+  .a-bronze .arrow-line::after { border-left-color: var(--bronze); }
+  .a-silver .arrow-line { background: var(--silver); }
+  .a-silver .arrow-line::after { border-left-color: var(--silver); }
+  .a-gold   .arrow-line { background: var(--gold); }
+  .a-gold   .arrow-line::after { border-left-color: var(--gold); }
+  .a-purple .arrow-line { background: var(--purple); }
+  .a-purple .arrow-line::after { border-left-color: var(--purple); }
+  .a-orange .arrow-line { background: var(--orange); }
+  .a-orange .arrow-line::after { border-left-color: var(--orange); }
+  .a-green  .arrow-line { background: var(--green); }
+  .a-green  .arrow-line::after { border-left-color: var(--green); }
+  .a-blue   .arrow-line { background: var(--blue); }
+  .a-blue   .arrow-line::after { border-left-color: var(--blue); }
+  .a-dim    .arrow-line { background: var(--border-mid); }
+  .a-dim    .arrow-line::after { border-left-color: var(--border-mid); }
+
+  /* ── Vertical arrow ── */
+  .varrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin: 4px 0;
+  }
+  .varrow-line {
+    width: 1px;
+    height: 22px;
+    position: relative;
+  }
+  .varrow-line::after {
+    content: '';
+    position: absolute;
+    bottom: -1px; left: -3px;
+    border: 3px solid transparent;
+    border-top: 5px solid;
+  }
+  .varrow-label {
+    font-family: var(--mono);
+    font-size: 8px;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+  }
+  .va-bronze .varrow-line { background: var(--bronze); }
+  .va-bronze .varrow-line::after { border-top-color: var(--bronze); }
+  .va-silver .varrow-line { background: var(--silver); }
+  .va-silver .varrow-line::after { border-top-color: var(--silver); }
+  .va-gold   .varrow-line { background: var(--gold); }
+  .va-gold   .varrow-line::after { border-top-color: var(--gold); }
+  .va-purple .varrow-line { background: var(--purple); }
+  .va-purple .varrow-line::after { border-top-color: var(--purple); }
+  .va-green  .varrow-line { background: var(--green); }
+  .va-green  .varrow-line::after { border-top-color: var(--green); }
+  .va-blue   .varrow-line { background: var(--blue); }
+  .va-blue   .varrow-line::after { border-top-color: var(--blue); }
+  .va-orange .varrow-line { background: var(--orange); }
+  .va-orange .varrow-line::after { border-top-color: var(--orange); }
+  .va-dim    .varrow-line { background: var(--border-mid); }
+  .va-dim    .varrow-line::after { border-top-color: var(--border-mid); }
+
+  /* ── Dividers ── */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0 18px;
+  }
+  .divider-line { flex: 1; height: 1px; background: var(--border); }
+  .divider-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  /* ── Split layout ── */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1px 1fr;
+    gap: 0;
+    max-width: 1080px;
+    margin: 0 auto;
+  }
+  .split-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 28px;
+  }
+  .split-sep {
+    background: var(--border);
+    margin: 8px 0;
+  }
+  .split-heading {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    border: 1px solid;
+  }
+  .sh-ind  { color: var(--gold);   border-color: #5c4010; background: rgba(212,168,50,0.04); }
+  .sh-flink { color: var(--purple); border-color: #38306c; background: rgba(124,108,232,0.04); }
+
+  /* ── Flink branch pills ── */
+  .flink-branches {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    align-self: stretch;
+    margin: 4px 0;
+  }
+  .fb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    border: 1px solid;
+    font-family: var(--mono);
+    font-size: 8px;
+    letter-spacing: 0.03em;
+  }
+  .fb-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+  .fb-vel  { color: var(--orange); border-color: #5c3010; background: rgba(224,120,48,0.04); }
+  .fb-cep  { color: var(--pink);   border-color: #5c1838; background: rgba(196,56,104,0.04); }
+  .fb-base { color: var(--teal);   border-color: #104838; background: rgba(48,184,136,0.04); }
+
+  /* ── Cache annotation ── */
+  .cache-note {
+    border: 1px dashed var(--border-mid);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 8px;
+    color: var(--text-mid);
+    line-height: 1.7;
+    max-width: 280px;
+    text-align: left;
+    margin: 6px 0;
+  }
+  .cache-note strong {
+    display: block;
+    color: #9888e8;
+    font-size: 8px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+
+  /* ── Storage row ── */
+  .storage-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  .storage-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .storage-lbl {
+    font-family: var(--mono);
+    font-size: 7px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  /* ── BI row ── */
+  .bi-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* ── Startup order ── */
+  .startup {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .startup-node {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-family: var(--mono);
+    font-size: 8px;
+    color: var(--text-mid);
+    text-align: center;
+    line-height: 1.5;
+  }
+  .startup-node span { display: block; color: var(--text-dim); font-size: 7px; }
+
+  /* ── Legend ── */
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    justify-content: center;
+    margin-bottom: 36px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-mid);
+  }
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── Dead letter note ── */
+  .dead-note {
+    font-family: var(--mono);
+    font-size: 8px;
+    color: var(--red);
+    border: 1px dashed #5c1c20;
+    background: rgba(208,56,72,0.04);
+    padding: 3px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+
+  /* ── Spacing helpers ── */
+  .mt4  { margin-top: 4px; }
+  .mt8  { margin-top: 8px; }
+  .mt12 { margin-top: 12px; }
+  .mt16 { margin-top: 16px; }
+  .mt24 { margin-top: 24px; }
+  .center { display: flex; justify-content: center; }
+
+  /* ── Fade in ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .diagram > * {
+    animation: fadeUp 0.5s ease both;
+  }
+  .diagram > *:nth-child(1)  { animation-delay: 0.05s; }
+  .diagram > *:nth-child(2)  { animation-delay: 0.10s; }
+  .diagram > *:nth-child(3)  { animation-delay: 0.15s; }
+  .diagram > *:nth-child(4)  { animation-delay: 0.20s; }
+  .diagram > *:nth-child(5)  { animation-delay: 0.25s; }
+  .diagram > *:nth-child(6)  { animation-delay: 0.30s; }
+  .diagram > *:nth-child(7)  { animation-delay: 0.35s; }
+  .diagram > *:nth-child(8)  { animation-delay: 0.40s; }
+  .diagram > *:nth-child(9)  { animation-delay: 0.45s; }
+  .diagram > *:nth-child(10) { animation-delay: 0.50s; }
+  .diagram > *:nth-child(11) { animation-delay: 0.55s; }
+  .diagram > *:nth-child(12) { animation-delay: 0.60s; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-eyebrow">System Architecture</div>
+  <h1>Agentic Network Event Monitor</h1>
+  <p>Real-time security event ingestion, AI enrichment, and stream-based threat detection</p>
+</div>
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:var(--bronze)"></div>Bronze — raw events</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--silver)"></div>Silver — cleaned</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div>Gold — AI enriched</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>Flink aggregations</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Elasticsearch</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>PostgreSQL</div>
+  <div class="legend-item"><div class="legend-dot" style="background:var(--orange)"></div>MinIO</div>
+</div>
+
+<div class="diagram">
+
+  <!-- ══ ROW 1: Ingestion ══ -->
+  <div class="section-label" style="text-align:center">Ingestion</div>
+  <div class="row">
+    <div class="node n-source" style="width:140px">
+      <div class="node-title">Log Sources</div>
+      <div class="node-sub">Firewall · EDR<br>SIEM · Syslog</div>
+    </div>
+    <div class="arrow a-bronze">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">raw events</div>
+    </div>
+    <div class="node n-bronze" style="width:180px">
+      <div class="node-title">logs.bronze.events.v1</div>
+      <div class="node-sub">Unmodified · 7-day retention</div>
+    </div>
+    <div class="arrow a-bronze">
+      <div class="arrow-line"></div>
+    </div>
+    <div class="node n-service" style="width:130px">
+      <div class="node-title">Cleaner Agent</div>
+      <div class="node-sub">Normalise · Validate<br>Deduplicate</div>
+    </div>
+    <div class="arrow a-silver">
+      <div class="arrow-line"></div>
+    </div>
+    <div class="node n-silver" style="width:180px">
+      <div class="node-title">logs.silver.events.v1</div>
+      <div class="node-sub">UTC · Validated IPs<br>Consistent schema</div>
+    </div>
+    <div class="arrow a-orange" style="margin-left:8px">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">Kafka Connect</div>
+    </div>
+    <div class="node n-minio" style="width:80px">
+      <div class="node-title">MinIO</div>
+      <div class="node-sub">bronze/<br>silver/</div>
+    </div>
+  </div>
+
+  <!-- Dead letter -->
+  <div class="center mt4" style="justify-content:flex-start;padding-left:310px">
+    <div class="dead-note">parse / clean errors → logs.dead.*.v1</div>
+  </div>
+
+  <!-- Divider -->
+  <div class="divider">
+    <div class="divider-line"></div>
+    <div class="divider-label">Silver consumed simultaneously by two independent consumer groups</div>
+    <div class="divider-line"></div>
+  </div>
+
+  <!-- ══ SPLIT: Individual + Flink ══ -->
+  <div class="split">
+
+    <!-- LEFT: Enricher -->
+    <div class="split-col">
+      <div class="split-heading sh-ind">① Enricher Pipeline — group: security.enricher.v1</div>
+
+      <div class="node n-service" style="width:280px">
+        <div class="node-title">Enricher Agent</div>
+        <div class="node-sub">LangGraph: enrich → score → reason → route</div>
+        <div class="node-tag" style="background:rgba(58,140,212,0.08);color:#5898d8;border:1px solid #1c3c5c">
+          AbuseIPDB · OTX · IPinfo · VirusTotal<br>
+          CMDB · IdP · Ollama (llama3.1)
+        </div>
+      </div>
+
+      <div class="varrow va-gold mt8">
+        <div class="varrow-line"></div>
+        <div class="varrow-label">threat_score · mitre · narrative</div>
+      </div>
+
+      <div class="node n-gold mt4" style="width:280px">
+        <div class="node-title">logs.gold.assessed-events.v1</div>
+        <div class="node-sub">Fully enriched · 7-day Kafka retention</div>
+      </div>
+
+      <div class="varrow va-gold mt8"><div class="varrow-line"></div></div>
+
+      <div class="row mt4" style="gap:8px">
+        <div class="node n-consumer" style="width:180px">
+          <div class="node-title">gold-consumer</div>
+          <div class="node-sub">Reads gold topic<br>Writes to ES + Postgres</div>
+          <div class="node-tag" style="background:rgba(200,148,12,0.06);color:#c8940c;border:1px solid #5c4010">
+            group: security.gold-consumer.v1
+          </div>
+        </div>
+        <div class="arrow a-orange">
+          <div class="arrow-line"></div>
+          <div class="arrow-label">Kafka Connect</div>
+        </div>
+        <div class="node n-minio" style="width:72px">
+          <div class="node-title">MinIO</div>
+          <div class="node-sub">gold/<br>archive</div>
+        </div>
+      </div>
+
+      <div class="varrow va-green mt8"><div class="varrow-line"></div></div>
+
+      <div class="storage-row mt4">
+        <div class="storage-group">
+          <div class="node n-es" style="width:130px">
+            <div class="node-title">Elasticsearch</div>
+            <div class="node-sub">security-events<br>hot · 30–90 days</div>
+          </div>
+          <div class="storage-lbl">hot</div>
+        </div>
+        <div class="storage-group">
+          <div class="node n-pg" style="width:120px">
+            <div class="node-title">PostgreSQL</div>
+            <div class="node-sub">events table<br>warm · forever</div>
+          </div>
+          <div class="storage-lbl">warm</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Separator -->
+    <div class="split-sep"></div>
+
+    <!-- RIGHT: Flink -->
+    <div class="split-col">
+      <div class="split-heading sh-flink">② Flink Pipeline — group: security.flink.aggregator.v1</div>
+
+      <div class="node n-flink" style="width:280px">
+        <div class="node-title">Flink Job</div>
+        <div class="node-sub">PyFlink · 3 parallel analysis branches</div>
+        <div class="node-tag" style="background:rgba(124,108,232,0.06);color:#9888e8;border:1px solid #38306c">
+          tumbling windows · keyed state · baseline rolling avg
+        </div>
+      </div>
+
+      <div class="varrow va-purple mt8"><div class="varrow-line"></div></div>
+
+      <div class="flink-branches mt4">
+        <div class="fb fb-vel">
+          <div class="fb-dot"></div>
+          logs.aggregated.windowed-events.v1
+          <span style="margin-left:auto;color:var(--text-dim)">velocity</span>
+        </div>
+        <div class="fb fb-cep">
+          <div class="fb-dot"></div>
+          logs.aggregated.correlated-events.v1
+          <span style="margin-left:auto;color:var(--text-dim)">CEP chain</span>
+        </div>
+        <div class="fb fb-base">
+          <div class="fb-dot"></div>
+          logs.aggregated.baseline-alerts.v1
+          <span style="margin-left:auto;color:var(--text-dim)">baseline</span>
+        </div>
+      </div>
+
+      <div class="varrow va-purple mt8"><div class="varrow-line"></div></div>
+
+      <div class="node n-consumer-f mt4" style="width:280px">
+        <div class="node-title">flink-consumer</div>
+        <div class="node-sub">Reads 3 aggregated topics · Writes to ES + Postgres</div>
+        <div class="node-tag" style="background:rgba(124,108,232,0.06);color:#9888e8;border:1px solid #38306c;margin-top:4px">
+          group: security.flink.aggregator.v1
+        </div>
+      </div>
+
+      <div class="cache-note mt8">
+        <strong>In-memory gold cache (Thread 2)</strong>
+        Reads gold topic independently<br>
+        group: security.flink-enrichment-cache.v1<br>
+        Key: source_ip:event_type · TTL: 3× CEP window<br>
+        <span style="color:var(--text-dim)">Copies enrichment from gold events — no API calls</span>
+      </div>
+
+      <div class="row mt8" style="align-self:flex-end;margin-right:16px;gap:6px">
+        <div class="arrow a-orange">
+          <div class="arrow-line"></div>
+          <div class="arrow-label">Kafka Connect</div>
+        </div>
+        <div class="node n-minio" style="width:120px">
+          <div class="node-title">MinIO</div>
+          <div class="node-sub">aggregated/windowed/<br>aggregated/correlated/<br>aggregated/baseline/</div>
+        </div>
+      </div>
+
+      <div class="varrow va-green mt8"><div class="varrow-line"></div></div>
+
+      <div class="storage-row mt4">
+        <div class="storage-group">
+          <div class="node n-es" style="width:148px">
+            <div class="node-title">Elasticsearch</div>
+            <div class="node-sub">security-aggregations<br>hot · 30–90 days</div>
+          </div>
+          <div class="storage-lbl">hot</div>
+        </div>
+        <div class="storage-group">
+          <div class="node n-pg" style="width:130px">
+            <div class="node-title">PostgreSQL</div>
+            <div class="node-sub">aggregations table<br>warm · forever</div>
+          </div>
+          <div class="storage-lbl">warm</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dead letter enrichment -->
+  <div class="center mt8">
+    <div class="dead-note">enrichment errors → logs.dead.enrich-errors.v1</div>
+  </div>
+
+  <!-- Divider -->
+  <div class="divider mt8">
+    <div class="divider-line"></div>
+    <div class="divider-label">BI &amp; Analysis Layer</div>
+    <div class="divider-line"></div>
+  </div>
+
+  <!-- ══ BI Layer ══ -->
+  <div class="bi-row">
+    <div class="node n-bi" style="width:250px">
+      <div class="node-title">Kibana</div>
+      <div class="node-sub">
+        Queries security-events + security-aggregations<br>
+        Cross-index search · Live SOC dashboards<br>
+        Alerting rules on aggregation events
+      </div>
+    </div>
+    <div class="node n-bi" style="width:250px">
+      <div class="node-title">Apache Superset</div>
+      <div class="node-sub">
+        Queries events + aggregations tables<br>
+        v_aggregation_enriched · v_ip_full_picture<br>
+        Historical BI · Custom SQL
+      </div>
+    </div>
+    <div class="node n-minio" style="width:220px">
+      <div class="node-title">MinIO / DuckDB / Athena</div>
+      <div class="node-sub">
+        Cold archive for all pipeline stages<br>
+        bronze/ silver/ gold/ aggregated/
+      </div>
+    </div>
+  </div>
+
+  <!-- Divider -->
+  <div class="divider mt16">
+    <div class="divider-line"></div>
+    <div class="divider-label">Container Startup Order</div>
+    <div class="divider-line"></div>
+  </div>
+
+  <!-- ══ Startup order ══ -->
+  <div class="startup">
+    <div class="startup-node">zookeeper</div>
+    <div class="arrow a-dim" style="padding:0"><div class="arrow-line" style="width:18px"></div></div>
+    <div class="startup-node">kafka</div>
+    <div class="arrow a-dim" style="padding:0"><div class="arrow-line" style="width:18px"></div></div>
+    <div class="startup-node">kafka-init<span>topics</span></div>
+    <div class="arrow a-dim" style="padding:0"><div class="arrow-line" style="width:18px"></div></div>
+    <div class="startup-node">elasticsearch<br>postgres · minio<span>infrastructure</span></div>
+    <div class="arrow a-dim" style="padding:0"><div class="arrow-line" style="width:18px"></div></div>
+    <div class="startup-node">*-init services<span>indices · schema · buckets</span></div>
+    <div class="arrow a-dim" style="padding:0"><div class="arrow-line" style="width:18px"></div></div>
+    <div class="startup-node">cleaner<br>enricher · ollama<span>pipeline agents</span></div>
+    <div class="arrow a-dim" style="padding:0"><div class="arrow-line" style="width:18px"></div></div>
+    <div class="startup-node">flink-jobmanager<br>flink-taskmanager<br>flink-job<span>stream processing</span></div>
+    <div class="arrow a-dim" style="padding:0"><div class="arrow-line" style="width:18px"></div></div>
+    <div class="startup-node">gold-consumer<br>flink-consumer<span>storage sinks</span></div>
+    <div class="arrow a-dim" style="padding:0"><div class="arrow-line" style="width:18px"></div></div>
+    <div class="startup-node">kibana<br>superset<span>dashboards</span></div>
+  </div>
+
+</div>
+</body>
+</html>
