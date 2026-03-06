@@ -86,7 +86,7 @@ The pipeline has two halves. The **producer** is a Go application that uses Olla
               MinIO data lake
         bronze/ silver/ gold/ aggregated/
                     │
-           Kibana · Superset · DuckDB
+             Kibana · Superset 
 ```
 
 ---
