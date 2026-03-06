@@ -20,7 +20,7 @@ def make_consumer(group_id: str, topics: list[str]) -> Consumer:
         "bootstrap.servers":  config.kafka.bootstrap_servers,
         "group.id":           group_id,
         "auto.offset.reset":  config.kafka.auto_offset_reset,
-        "enable.auto.commit": False,        # manual commit for safety
+        "enable.auto.commit": False,
         "max.poll.interval.ms": 300000,     # 5 min — LLM calls can be slow
     })
     consumer.subscribe(topics)

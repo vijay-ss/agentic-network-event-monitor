@@ -1,4 +1,3 @@
-# gold_consumer/consumer.py
 """
 Gold Consumer — Storage sink for individually enriched events.
 

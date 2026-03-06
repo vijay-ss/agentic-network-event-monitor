@@ -1,4 +1,3 @@
-# cleaner/transforms.py
 """
 Data cleaning transformation functions.
 
@@ -26,8 +25,6 @@ from dateutil import parser as dateparser
 from shared.models import BronzeEvent, SilverEvent, Severity, Action
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
-
 def clean_event(bronze: BronzeEvent) -> SilverEvent:
     warnings: list[str] = []
 
@@ -39,7 +36,6 @@ def clean_event(bronze: BronzeEvent) -> SilverEvent:
     tcp_flags   = _parse_tcp_flags(bronze.tcp_flags)
     event_type  = _normalize_event_type(bronze.event_type, warnings)
 
-    # Flatten nested structs
     ingestion_time  = bronze.log_metadata.ingestion_time if bronze.log_metadata else None
     source_type     = bronze.log_metadata.source_type    if bronze.log_metadata else None
     pipeline        = bronze.log_metadata.pipeline       if bronze.log_metadata else None
@@ -47,7 +43,6 @@ def clean_event(bronze: BronzeEvent) -> SilverEvent:
     network_segment = bronze.network_details.network_segment if bronze.network_details else None
     security_zone   = bronze.network_details.security_zone   if bronze.network_details else None
 
-    # Flatten resource utilization (EDR events)
     process_name   = None
     process_id     = None
     cpu_percent    = None
@@ -58,12 +53,11 @@ def clean_event(bronze: BronzeEvent) -> SilverEvent:
         cpu_percent    = bronze.resource_utilization.cpu_percent
         memory_percent = bronze.resource_utilization.memory_percent
 
-    # Normalize destination domain
     dest_domain = _normalize_domain(bronze.destination_domain, warnings)
 
     return SilverEvent(
         id=str(uuid.uuid4()),
-        original_id=bronze.id, # call it bronze id?
+        original_id=bronze.id,
         event_time=event_time,
         ingestion_time=_normalize_timestamp(ingestion_time, warnings) if ingestion_time else None,
         source_ip=source_ip,
@@ -106,8 +100,6 @@ def clean_event(bronze: BronzeEvent) -> SilverEvent:
     )
 
 
-# ── Timestamp normalization ───────────────────────────────────────────────────
-
 def _normalize_timestamp(ts: str | None, warnings: list[str]) -> str:
     if not ts:
         warnings.append("missing timestamp — using current UTC time")
@@ -122,8 +114,6 @@ def _normalize_timestamp(ts: str | None, warnings: list[str]) -> str:
         warnings.append(f"unparseable timestamp '{ts}' — using current UTC time")
         return datetime.now(timezone.utc).isoformat()
 
-
-# ── IP normalization ──────────────────────────────────────────────────────────
 
 def _normalize_ip(ip: str | None, field: str, warnings: list[str]) -> str | None:
     if not ip:
@@ -140,8 +130,6 @@ def _normalize_ip(ip: str | None, field: str, warnings: list[str]) -> str | None
         return None
 
 
-# ── Domain normalization ──────────────────────────────────────────────────────
-
 def _normalize_domain(domain: str | None, warnings: list[str]) -> str | None:
     if not domain:
         return None
@@ -153,8 +141,6 @@ def _normalize_domain(domain: str | None, warnings: list[str]) -> str | None:
     return domain
 
 
-# ── Port normalization ────────────────────────────────────────────────────────
-
 def _normalize_port(port: int | None, warnings: list[str]) -> int | None:
     if port is None:
         return None
@@ -163,8 +149,6 @@ def _normalize_port(port: int | None, warnings: list[str]) -> int | None:
     warnings.append(f"invalid port {port} — set to null")
     return None
 
-
-# ── Severity normalization ────────────────────────────────────────────────────
 
 _SEVERITY_MAP = {
     "info":     Severity.INFO,
@@ -187,8 +171,6 @@ def _normalize_severity(raw: str | None, warnings: list[str]) -> Severity:
     return normalized
 
 
-# ── Action normalization ──────────────────────────────────────────────────────
-
 _ACTION_MAP = {
     "allow":   Action.ALLOW,
     "permit":  Action.ALLOW,
@@ -210,15 +192,11 @@ def _normalize_action(raw: str | None, warnings: list[str]) -> Action | None:
     return normalized
 
 
-# ── TCP flags ─────────────────────────────────────────────────────────────────
-
 def _parse_tcp_flags(flags: str | None) -> list[str]:
     if not flags:
         return []
     return [f.strip().upper() for f in flags.split(",") if f.strip()]
 
-
-# ── Event type normalization ──────────────────────────────────────────────────
 
 def _normalize_event_type(event_type: str | None, warnings: list[str]) -> str:
     if not event_type:
@@ -226,8 +204,6 @@ def _normalize_event_type(event_type: str | None, warnings: list[str]) -> str:
         return "UNKNOWN"
     return event_type.upper().strip()
 
-
-# ── User normalization ────────────────────────────────────────────────────────
 
 def _normalize_user(user: str | None) -> str | None:
     if not user:

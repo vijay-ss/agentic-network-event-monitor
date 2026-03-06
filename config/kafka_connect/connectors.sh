@@ -7,7 +7,6 @@
 #
 # Override individual settings directly:
 #   ENV_MODE=prod FLUSH_SIZE=5000 ROTATE_INTERVAL_MS=300000 docker compose up
-
 set -e
 CONNECT_URL="http://kafka-connect:8083"
 ENV_MODE="${ENV_MODE:-dev}"

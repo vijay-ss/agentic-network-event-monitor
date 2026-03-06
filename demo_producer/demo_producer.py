@@ -1,4 +1,3 @@
-# scripts/demo_producer.py
 """
 Produces synthetic log entries matching your real log schema
 directly to logs.bronze.events.v1 for local testing.
